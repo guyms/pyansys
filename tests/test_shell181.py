@@ -79,9 +79,6 @@ Nodal Solution results from ANSYS
 import os
 import numpy as np
 import pyansys
-from pyansys.examples import hexarchivefile
-from pyansys.examples import rstfile
-from pyansys.examples import fullfile
 
 test_path = os.path.dirname(os.path.abspath(__file__))
 testfiles_path = os.path.join(test_path, 'testfiles')
@@ -105,8 +102,8 @@ class TestLoad181():
         assert np.any(self.result.grid.cells)
         assert np.any(self.result.grid.points)
 
-    def test_elementstress(self):
-        element_stress, elemnum, enode = self.result.ElementStress(0)
+    def test_element_stress(self):
+        element_stress, elemnum, enode = self.result.element_stress(0)
         element0 = element_stress[0]
 
         # ansys prints both postiive and negative component values
@@ -116,13 +113,11 @@ class TestLoad181():
         # wide atol limits considering the 5 sigfig from ASCII tables
         assert np.allclose(element0, np.array(ANSYS_ELEM), atol=1E-6)
 
-    def test_nodalstress(self):
-        nnum, stress = self.result.NodalStress(0)
+    def test_nodal_stress(self):
+        nnum, stress = self.result.nodal_stress(0)
         # element0 = element_stress[0]
         if np.sign(stress[0][0]) != np.sign(ANSYS_NODE[0][0]):
             stress *= -1
 
         # wide atol limits considering the 5 sigfig from ASCII tables
         assert np.allclose(stress, np.array(ANSYS_NODE), atol=1E-6)
-
-

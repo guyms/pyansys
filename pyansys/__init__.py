@@ -7,11 +7,11 @@ from pyansys.binary_reader import *
 from pyansys.cyclic_reader import *
 from pyansys.binary_reader import FullReader
 from pyansys.cellquality import *
-from pyansys.convert import ConvertFile
+from pyansys.convert import convert_script
 
 try:
     from pyansys.ansys import ANSYS
-    from pyansys.ansys import ChangeDefaultANSYSPath
+    from pyansys.ansys import change_default_ansys_path
 except Exception as e:
     try:
         from pyansys.ansysbase import ANSYS
@@ -20,6 +20,6 @@ except Exception as e:
 
 try:
     from pyansys import ansys
-    has_ansys = ansys.CheckValidANSYS()
+    has_ansys = ansys.check_valid_ansys()
 except:
     has_ansys = False

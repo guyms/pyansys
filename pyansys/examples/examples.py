@@ -23,7 +23,7 @@ sector_archive_file = os.path.join(dir_path, 'sector.cdb')
 sector_result_file = os.path.join(dir_path, 'sector.rst')
 
 
-def RunAll(run_ansys=False):
+def run_all(run_ansys=False):
     """
     Runs all the functions within this module except for the ansys
     tests.
@@ -31,8 +31,8 @@ def RunAll(run_ansys=False):
     """
     testfunctions = []
     for name, obj in inspect.getmembers(sys.modules[__name__]):
-        if inspect.isfunction(obj) and name != 'RunAll':
-            if 'ANSYS' in name and not run_ansys:
+        if inspect.isfunction(obj) and name != 'run_all':
+            if 'ansys' in name and not run_ansys:
                 continue
             testfunctions.append(obj)
 
@@ -40,15 +40,17 @@ def RunAll(run_ansys=False):
     any(f() for f in testfunctions)
 
 
-def DisplayHexBeam(as_test=False):
+def show_hex_archive(off_screen=False):
     """ Displays a hex beam mesh """
     # Load an archive file
     archive = pyansys.Archive(hexarchivefile)
     grid = archive.parse_vtk()
-    grid.plot(interactive=False)
+    grid.plot(off_screen=off_screen)
+    assert grid.n_points
+    assert grid.n_cells
 
 
-def LoadResult():
+def load_result():
     """
     Loads a result file and prints out the displacement of all the nodes from
     a modal analysis.
@@ -57,11 +59,13 @@ def LoadResult():
 
     # Load result file
     result = pyansys.ResultReader(rstfile)
+    assert result.nsets == 6
+    assert len(result.nnum) == 321
     print('Loaded result file with {:d} result sets'.format(result.nsets))
     print('Contains {:d} nodes'.format(len(result.nnum)))
 
     # display result
-    nnum, disp = result.NodalSolution(0)
+    nnum, disp = result.nodal_solution(0)
 
     print('Nodal displacement for nodes 30 to 40 is:')
 
@@ -73,32 +77,32 @@ def LoadResult():
         print('{:2d}  {:10.6f}   {:10.6f}   {:10.6f}'.format(node, x, y, z))
 
 
-def DisplayDisplacement():
+def show_displacement(interactive=True):
     """ Load and plot 1st bend of a hexahedral beam """
 
     # get location of this file
     fobj = pyansys.ResultReader(rstfile)
 
     print('Displaying ANSYS Mode 1')
-    fobj.PlotNodalSolution(0, label='Displacement')
+    fobj.plot_nodal_solution(0, label='Displacement', interactive=interactive)
 
 
-def DisplayStress():
+def show_stress(interactive=True):
     """ Load and plot 1st bend of a hexahedral beam """
 
     # get location of this file
     result = pyansys.ResultReader(rstfile)
 
     print('Displaying node averaged stress in x direction for Mode 6')
-    result.PlotNodalStress(5, 'Sx')
+    result.plot_nodal_stress(5, 'Sx', interactive=interactive)
 
 
-def LoadKM():
+def load_km():
     """ Loads m and k matrices from a full file """
 
     # Create file reader object
     fobj = pyansys.FullReader(fullfile)
-    dofref, k, m = fobj.LoadKM()
+    dofref, k, m = fobj.load_km()
 
     # print results
     ndim = k.shape[0]
@@ -126,9 +130,23 @@ def LoadKM():
     print('First four natural frequencies:')
     for i in range(4):
         print('{:.3f} Hz'.format(f[i]))
+    # breakpoint()
+
+    known_result = np.array([ 1283.20036921, 1283.20036921,
+                              5781.97486169, 6919.39887714,
+                              6919.39887714, 10172.61497694,
+                              16497.85701889, 16497.85701889,
+                              17343.9939669 , 27457.18472747,
+                              27457.18472747, 28908.52552073,
+                              30326.16886062, 39175.76412419,
+                              39175.76412419, 40503.70406456,
+                              49819.91597612, 51043.03965541,
+                              51043.03965541, 52193.86143879])
+
+    assert np.allclose(f, known_result)
 
 
-def SolveKM():
+def solve_km():
     """
     Loads and solves a mass and stiffness matrix from an ansys full file
     """
@@ -141,7 +159,7 @@ def SolveKM():
 
     # load the mass and stiffness matrices
     full = pyansys.FullReader(pyansys.examples.fullfile)
-    dofref, k, m = full.LoadKM(sort=True)
+    dofref, k, m = full.load_km(sort=True)
 
     # make symmetric
     k += sparse.triu(k, 1).T
@@ -172,17 +190,17 @@ def SolveKM():
     plobj = vtki.Plotter()
 
     # add two meshes to the plotting class
-    plobj.add_mesh(grid.copy(), style='wireframe')
+    plobj.add_mesh(grid.copy(), color='w', style='wireframe')
     plobj.add_mesh(grid, scalars=n, stitle='Normalized\nDisplacement',
-                  flipscalars=True)
+                  flip_scalars=True)
     # Update the coordinates by adding the mode shape to the grid
-    plobj.update_coordinates(grid.GetNumpyPoints() + disp / 80, render=False)
-    plobj.add_text('Cantliver Beam 4th Mode Shape at {:.4f}'.format(f[3]),
-                  fontsize=30)
+    plobj.update_coordinates(grid.points + disp / 80, render=False)
+    plobj.add_text('Cantliver Beam 4th\nMode Shape at\n{:.4f}'.format(f[3]),
+                  font_size=30)
     plobj.plot()
 
 
-def DisplayCellQual(meshtype='tet'):
+def show_cell_qual(meshtype='tet', off_screen=False):
     """
     Displays minimum scaled jacobian of a sample mesh
 
@@ -207,14 +225,15 @@ def DisplayCellQual(meshtype='tet'):
 
     # get cell quality
     qual = pyansys.CellQuality(grid)
+    assert np.all(qual > 0)
 
     # plot cell quality
     grid.plot(scalars=qual, stitle='Cell Minimum Scaled\nJacobian',
-              rng=[0, 1], flipscalars=True)
+              rng=[0, 1], flip_scalars=True, off_screen=off_screen)
 
 
-def CylinderANSYS(exec_file=None, plot_vtk=True, plot_ansys=True,
-                  as_test=False):
+def ansys_cylinder_demo(exec_file=None, plot_vtk=True,
+                        plot_ansys=True, as_test=False):
     """
     Cylinder demo for ansys
     """
@@ -305,12 +324,12 @@ def CylinderANSYS(exec_file=None, plot_vtk=True, plot_ansys=True,
 
     # open the result file
     result = ansys.result
-    element_stress, elemnum, enode = result.ElementStress(0)
+    element_stress, elemnum, enode = result.element_stress(0)
     if as_test:
         assert len(element_stress)
     else:
         print(element_stress[:10])
-    nodenum, stress = result.NodalStress(0)
+    nodenum, stress = result.nodal_stress(0)
     if as_test:
         assert np.any(stress)
     else:
@@ -323,20 +342,24 @@ def CylinderANSYS(exec_file=None, plot_vtk=True, plot_ansys=True,
                     (0.35955395443745797, -1.4198191001571547, 10.346158032932495),
                     (-0.10547549888485548, 0.9200673323892437, -0.377294345312956)]
 
-            img = result.PlotNodalSolution(0, interactive=False, cpos=cpos, screenshot=True)
+            img = result.plot_nodal_solution(0, interactive=False,
+                                             cpos=cpos, screenshot=True)
             assert np.any(img)
 
-            img = result.PlotNodalStress(0, 'Sx', colormap='bwr', interactive=False, cpos=cpos,
-                                         screenshot=True)
+            img = result.plot_nodal_stress(0, 'Sx', cmap='bwr',
+                                           interactive=False, cpos=cpos,
+                                           screenshot=True)
             assert np.any(img)
 
-            result.PlotPrincipalNodalStress(0, 'SEQV', colormap='bwr', interactive=False,
-                                            cpos=cpos, screenshot=True)
+            result.plot_principal_nodal_stress(0, 'SEQV', cmap='bwr',
+                                               interactive=False,
+                                               cpos=cpos,
+                                               screenshot=True)
             assert np.any(img)
         else:
             # plot interactively
-            result.PlotNodalSolution(0, colormap='bwr')
-            result.PlotNodalStress(0, 'Sx', colormap='bwr')
-            result.PlotPrincipalNodalStress(0, 'SEQV', colormap='bwr')
+            result.plot_nodal_solution(0, cmap='bwr')
+            result.plot_nodal_stress(0, 'Sx', cmap='bwr')
+            result.plot_principal_nodal_stress(0, 'SEQV', cmap='bwr')
 
     return True

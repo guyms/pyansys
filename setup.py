@@ -132,8 +132,8 @@ setup(
                            extra_compile_args=cmp_arg,
                            language='c'),
 
-                 Extension("pyansys._rstHelper",
-                           ["pyansys/cython/_rstHelper.pyx"],
+                 Extension("pyansys._binary_reader",
+                           ["pyansys/cython/_binary_reader.pyx"],
                            extra_compile_args=cmp_arg,
                            language='c'),
                  ],
@@ -146,8 +146,8 @@ setup(
                                        'sector.rst',
                                        'sector.cdb']},
 
-    install_requires=['numpy>1.9.3',
-                      'vtki>=0.12.1',
+    install_requires=['numpy>=1.14.0',
+                      'vtki>=0.16.3',
                       'ansys_corba',
                       'appdirs',
                       'psutil>=5.0.0',

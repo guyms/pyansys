@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Module to control interaction with an ANSYS shell instance.
-Built using ansys documentation from
+Built using ANSYS documentation from
 https://www.sharcnet.ca/Software/Ansys/
 
 This module makes no claim to own any rights to ANSYS.  It's merely an
@@ -26,7 +26,7 @@ import numpy as np
 import psutil
 from ansys_corba import CORBA
 from pyansys.ansys_functions import _InternalANSYS
-from pyansys.convert import IsFloat
+from pyansys.convert import is_float
 
 try:
     import matplotlib.pyplot as plt
@@ -36,7 +36,7 @@ except:
     matplotlib_loaded = False
 
 
-def FindANSYS():
+def find_ansys():
     """ Searches for ansys path within enviornmental variables """
     versions = []
     paths = []
@@ -73,7 +73,7 @@ def FindANSYS():
     return os.path.join(ansys_bin_path, ansys_bin), version
 
 
-def Tail(filename, nlines):
+def tail(filename, nlines):
     """ Read the last nlines of a text file """
     with open(filename) as qfile:
         qfile.seek(0, os.SEEK_END)
@@ -95,7 +95,7 @@ def Tail(filename, nlines):
         return qfile.read()
 
 
-def KillProcess(proc_pid):
+def kill_process(proc_pid):
     """ kills a process with extreme prejudice """
     process = psutil.Process(proc_pid)
     for proc in process.children(recursive=True):
@@ -135,6 +135,16 @@ ready_items = [b'BEGIN:',
                b'ENTER FORMAT for',
 ]
 
+processors = ['/PREP7',
+              '/POST1',
+              '/SOLUTION',
+              '/POST26',
+              '/AUX2',
+              '/AUX3',
+              '/AUX12',
+              '/AUX15',
+              '/MAP',]
+
 continue_idx = ready_items.index(b'YES,NO OR CONTINUOUS\)\=')
 warning_idx = ready_items.index(b'executed\?')
 error_idx = ready_items.index(b'SHOULD INPUT PROCESSING BE SUSPENDED\?')
@@ -145,6 +155,7 @@ expect_list = []
 for item in ready_items:
     expect_list.append(re.compile(item))
 ignored = re.compile('[\s\S]+'.join(['WARNING', 'command', 'ignored']))
+
 ###############################################################################
 
 # test for png file
@@ -157,9 +168,9 @@ INVAL_COMMANDS = {'*vwr':  'Use "with ansys.non_interactive:\n\t*ansys.Run("VWRI
                   '*IF': 'Use a python if or run as non_interactive'}
 
 
-def CheckValidANSYS():
+def check_valid_ansys():
     """ Checks if a valid version of ANSYS is installed and preconfigured """
-    ansys_bin = GetANSYSPath(allow_input=False)
+    ansys_bin = get_ansys_path(allow_input=False)
     if ansys_bin is not None:
         version = int(re.findall('\d\d\d', ansys_bin)[0])
         return not(version < 170 and os.name != 'posix')
@@ -167,15 +178,15 @@ def CheckValidANSYS():
     return False
 
 
-def SetupLogger(loglevel='INFO'):
+def setup_logger(loglevel='INFO'):
     """ Setup logger """
 
     # return existing log if this function has already been called
-    if hasattr(SetupLogger, 'log'):
-        SetupLogger.log.setLevel(loglevel)
-        ch = SetupLogger.log.handlers[0]
+    if hasattr(setup_logger, 'log'):
+        setup_logger.log.setLevel(loglevel)
+        ch = setup_logger.log.handlers[0]
         ch.setLevel(loglevel)
-        return SetupLogger.log
+        return setup_logger.log
 
     # create logger
     log = logging.getLogger(__name__)
@@ -196,12 +207,12 @@ def SetupLogger(loglevel='INFO'):
     log.addHandler(ch)
 
     # make persistent
-    SetupLogger.log = log
+    setup_logger.log = log
 
     return log
 
 
-def GetANSYSPath(allow_input=True):
+def get_ansys_path(allow_input=True):
     """ Acquires ANSYS Path from a cached file or user input """
     exe_loc = None
     if os.path.isfile(config_file):
@@ -210,14 +221,14 @@ def GetANSYSPath(allow_input=True):
         # verify
         if not os.path.isfile(exe_loc) and allow_input:
             print('Cached ANSYS executable %s not found' % exe_loc)
-            exe_loc = SaveANSYSPath()
+            exe_loc = save_ansys_path()
     elif allow_input:  # create configuration file
-        exe_loc = SaveANSYSPath()
+        exe_loc = save_ansys_path()
 
     return exe_loc
 
 
-def ChangeDefaultANSYSPath(exe_loc):
+def change_default_ansys_path(exe_loc):
     """
     Change your default ansys path
 
@@ -234,10 +245,10 @@ def ChangeDefaultANSYSPath(exe_loc):
         raise Exception('File %s is invalid or does not exist' % exe_loc)
 
 
-def SaveANSYSPath(exe_loc=''):
+def save_ansys_path(exe_loc=''):
     """ Find ANSYS path or query user """
     print('Cached ANSYS executable %s not found' % exe_loc)
-    exe_loc, ver = FindANSYS()
+    exe_loc, ver = find_ansys()
     if os.path.isfile(exe_loc):
         print('Found ANSYS at %s' % exe_loc)
         resp = input('Use this location?  [Y/n]')
@@ -270,11 +281,12 @@ class ANSYS(_InternalANSYS):
     Parameters
     ----------
     exec_file : str, optional
-        The location of the ANSYS executable.  Will use the cached location when
-        left at the default None.
-
+        The location of the ANSYS executable.  Will use the cached
+        location when left at the default None.
+    
     run_location : str, optional
-        ANSYS working directory.  Defaults to a temporary working directory.
+        ANSYS working directory.  Defaults to a temporary working
+        directory.
 
     jobname : str, optional
         ANSYS jobname.  Defaults to 'file'.
@@ -283,48 +295,54 @@ class ANSYS(_InternalANSYS):
         Number of processors.  Defaults to 2.
 
     override : bool, optional
-        Attempts to delete the *.lock file at the run_location.  Useful when a prior
-        ANSYS session has exited prematurely and the lock file has not been deleted.
+        Attempts to delete the *.lock file at the run_location.
+        Useful when a prior ANSYS session has exited prematurely and
+        the lock file has not been deleted.
 
     wait : bool, optional
-        When True, waits until ANSYS has been initialized before initializing the
-        python ansys object.  Set this to False for debugging.
+        When True, waits until ANSYS has been initialized before
+        initializing the python ansys object.  Set this to False for
+        debugging.
 
     loglevel : str, optional
-        Sets which messages are printed to the console.  Default 'INFO' prints out
-        all ANSYS messages, 'WARNING` prints only messages containing ANSYS
-         warnings, and 'ERROR' prints only error messages.
+        Sets which messages are printed to the console.  Default
+        'INFO' prints out all ANSYS messages, 'WARNING` prints only
+        messages containing ANSYS warnings, and 'ERROR' prints only
+        error messages.
 
     additional_switches : str, optional
-        Additional switches for ANSYS, for example aa_r, and academic 
+        Additional switches for ANSYS, for example aa_r, and academic
         research license, would be added with:
 
         - additional_switches="-aa_r"
 
-        Avoid adding switches like -i -o or -b as these are already included to
-        start up the ANSYS MAPDL server.
+        Avoid adding switches like -i -o or -b as these are already
+        included to start up the ANSYS MAPDL server.
 
     start_timeout : float, optional
-        Time to wait before raising error that ANSYS is unable to start.
+        Time to wait before raising error that ANSYS is unable to
+        start.
 
     interactive_plotting : bool, optional
-        Enables interactive plotting using matplotlib.  Install matplotlib 
-        first.  Default False.
+        Enables interactive plotting using matplotlib.  Install
+        matplotlib first.  Default False.
 
     log_broadcast : bool, optional
-        Additional logging for ansys solution progress.  Default True and 
-        visible at log level 'INFO'.
+        Additional logging for ansys solution progress.  Default True
+        and visible at log level 'INFO'.
 
     check_version : bool, optional
         Check version of binary file and raise exception when invalid.
 
     prefer_pexpect : bool, optional
         When enabled, will avoid using ansys APDL in CORBA server mode
-        and will spawn a process and control it using pexpect.  Default False.
+        and will spawn a process and control it using pexpect.
+        Default False.
 
-    log_apdl : bool, optional
-        Opens an APDL log file named "log.inp" in the current ANSYS working
-        directory.
+    log_apdl : str, optional
+        Opens an APDL log file named "log.inp" in the current ANSYS
+        working directory.  Default 'w'.  Set to 'a' to append to
+        an existing log.
 
     Examples
     --------
@@ -338,12 +356,13 @@ class ANSYS(_InternalANSYS):
                  loglevel='INFO', additional_switches='',
                  start_timeout=120, interactive_plotting=False,
                  log_broadcast=False, check_version=True,
-                 prefer_pexpect=False, log_apdl=True):
+                 prefer_pexpect=False, log_apdl='w'):
         """ Initialize connection with ANSYS program """
-        self.log = SetupLogger(loglevel.upper())
+        self.log = setup_logger(loglevel.upper())
         self.jobname = jobname
         self.non_interactive = self._non_interactive(self)
-        self.redirected_commands = {'*LIS': self._List}
+        self.redirected_commands = {'*LIS': self._list}
+        self._processor = 'BEGIN'
 
         # default settings
         self.allow_ignore = False
@@ -361,7 +380,7 @@ class ANSYS(_InternalANSYS):
 
         if exec_file is None:
             # Load cached path
-            exec_file = GetANSYSPath()
+            exec_file = get_ansys_path()
             if exec_file is None:
                 raise Exception('Invalid or path or cannot load cached ansys path' +
                                 'Enter one manually using pyansys.ANSYS(exec_file=...)')
@@ -372,12 +391,19 @@ class ANSYS(_InternalANSYS):
                                 'Enter one manually using pyansys.ANSYS(exec_file="")')
         self.exec_file = exec_file
 
+        # # determine ansys version
+        # if '.exe' in self.exec_file:
+        #     self.version = self.exec_file[-7:-4]
+        # else:
+        #     self.version = self.exec_file[-3:]
+
         # check ansys version
         if check_version:
             version = int(re.findall('\d\d\d', self.exec_file)[0])
             if version < 170 and os.name != 'posix':
                 raise Exception('ANSYS MAPDL server requires version 17.0 or greater ' +
                                 'for windows')
+            self.version = str(version)
 
         # create temporary directory
         self.path = run_location
@@ -390,7 +416,7 @@ class ANSYS(_InternalANSYS):
                 except:
                     raise Exception('Unable to create temporary working '
                                     'directory %s\n' % self.path +
-                                    'Please specify run_location')
+                                    'Please specify run_location=')
         else:
             if not os.path.isdir(self.path):
                 raise Exception('%s is not a valid folder' % self.path)
@@ -416,30 +442,38 @@ class ANSYS(_InternalANSYS):
             f.write('FINISH')
 
         # open a connection to ANSYS
-        if (version < 170 and os.name == 'posix') or prefer_pexpect:
-            self.OpenProcess(nproc, start_timeout, additional_switches)
+        self.nproc = nproc
+        self.start_timeout = start_timeout
+        self.prefer_pexpect = prefer_pexpect
+        self.log_broadcast = log_broadcast
+        self.interactive_plotting = interactive_plotting
+        self._open(additional_switches)
+
+        if log_apdl:
+            filename = os.path.join(self.path, 'log.inp')
+            self.open_apdl_log(filename, mode=log_apdl)
+
+    def _open(self, additional_switches=''):
+        """
+        Opens up ANSYS an ansys process using either pexpect or
+        ansys_corba.
+        """ 
+        if (int(self.version) < 170 and os.name == 'posix') or self.prefer_pexpect:
+            self.open_process(self.nproc, self.start_timeout, additional_switches)
         else:  # use corba
-            self.OpenCorba(nproc, start_timeout, additional_switches)
+            self.open_corba(self.nproc, self.start_timeout, additional_switches)
 
             # separate logger for broadcast file
-            self.log_broadcast = log_broadcast
             if self.log_broadcast:
-                self.broadcast_logger = Thread(target=ANSYS.StartBroadcastLogger,
+                self.broadcast_logger = Thread(target=ANSYS.start_broadcast_logger,
                                                args=(weakref.proxy(self),))
                 self.broadcast_logger.start()
 
         # setup plotting for PNG
-        if interactive_plotting:
+        if self.interactive_plotting:
             self.EnableInteractivePlotting()
 
-        if log_apdl:
-            if isinstance(log_apdl, str):
-                filename = log_apdl
-            else:
-                filename = os.path.join(self.path, 'log.inp')
-            self.OpenAPDLLog(filename)
-
-    def OpenAPDLLog(self, filename):
+    def open_apdl_log(self, filename, mode='w'):
         """
         Starts writing all APDL commands to an ANSYS input
 
@@ -453,17 +487,18 @@ class ANSYS(_InternalANSYS):
             raise Exception('APDL command logging already enabled.\n')
 
         self.log.debug('Opening ANSYS log file at %s' % filename)
-        self.apdl_log = open(filename, 'w', 1)  # line buffered
-        self.apdl_log.write('! APDL script generated using pyansys %s\n' %
-                            pyansys.__version__)
+        self.apdl_log = open(filename, mode=mode, buffering=1)  # line buffered
+        if mode != 'w':
+            self.apdl_log.write('! APDL script generated using pyansys %s\n' %
+                                pyansys.__version__)
 
-    def CloseAPDLLog(self):
+    def close_apdl_log(self):
         """ Closes APDL log """
         if self.apdl_log is not None:
             self.apdl_log.close()
         self.apdl_log = None
 
-    def OpenProcess(self, nproc, timeout, additional_switches):
+    def open_process(self, nproc, timeout, additional_switches):
         """ Opens an ANSYS process using pexpect """
         command = '%s -j %s -np %d %s' % (self.exec_file, self.jobname, nproc,
                                           additional_switches)
@@ -490,9 +525,9 @@ class ANSYS(_InternalANSYS):
                             'or turn interactive plotting off with:\n' +
                             'interactive_plotting=False')
 
-    def SetLogLevel(self, loglevel):
+    def set_log_level(self, loglevel):
         """ Sets log level """
-        SetupLogger(loglevel=loglevel.upper())
+        setup_logger(loglevel=loglevel.upper())
 
     def __enter__(self):
         return self
@@ -507,7 +542,7 @@ class ANSYS(_InternalANSYS):
             else:
                 return self.process.isalive()
 
-    def StartBroadcastLogger(self, update_rate=1.0):
+    def start_broadcast_logger(self, update_rate=1.0):
         """ separate logger using broadcast_file """
 
         # listen to broadcast file
@@ -518,7 +553,7 @@ class ANSYS(_InternalANSYS):
                 new_size = os.path.getsize(self.broadcast_file)
                 if new_size != old_size:
                     old_size = new_size
-                    new_tail = Tail(self.broadcast_file, 4)
+                    new_tail = tail(self.broadcast_file, 4)
                     if new_tail != old_tail:
                         lines = new_tail.split('>>')
                         for line in lines:
@@ -579,7 +614,7 @@ class ANSYS(_InternalANSYS):
             function = self.redirected_commands[command[:4]]
             return function(command)
 
-        text = self._Run(command)
+        text = self._run(command)
         if text:
             self.response = text.strip()
         else:
@@ -591,18 +626,58 @@ class ANSYS(_InternalANSYS):
                 self._outfile.write('%s\n' % self.response)
         return self.response
 
-    def _Run(self, command):
+    def _run(self, command):
         if self.using_corba:
             # check if it's a single non-interactive command
             if command[:4].lower() == 'cdre':
                 with self.non_interactive:
                     return self.Run(command)
             else:
-                return self.RunCorbaCommand(command)
+                return self.run_corba_command(command)
         else:
-            return self.RunProcessCommand(command)
+            return self.run_process_command(command)
 
-    def _List(self, command):
+    def store_processor(self, command):
+        """ 
+        Check if a command is changing the processor and store it if so
+
+        # ready_items = [b'BEGIN:',
+        #        b'PREP7:',
+        #        b'SOLU_LS[0-9]+:',
+        #        b'POST1:',
+        #        b'POST26:',
+        #        b'RUNSTAT:',
+        #        b'AUX2:',
+        #        b'AUX3:',
+        #        b'AUX12:',
+        #        b'AUX15:',
+        """
+        # command may be abbreviated, check
+        processors = ['/PREP7',
+                      '/POST1',
+                      '/SOL', # /SOLUTION
+                      '/POST26',
+                      '/AUX2',
+                      '/AUX3',
+                      '/AUX12',
+                      '/AUX15']
+
+        short_proc = ['/PRE',
+                      '/POST',
+                      '/SOL', # /SOLUTION
+                      '/POS',
+                      '/AUX']
+
+        # # command may be as short as 4 characters,  check that
+        # upper_command = command.upper()
+        # short_command = upper_command[:4]
+        
+        # if short_command in short_proc:
+        #     # figure out which
+        #     if 
+
+
+    def _list(self, command):
         """ Replaces *LIST command """
         items = command.split(',')
         filename = os.path.join(self.path, '.'.join(items[1:]))
@@ -612,7 +687,7 @@ class ANSYS(_InternalANSYS):
         else:
             raise Exception('Cannot run:\n%s\n' % command + 'File does not exist')
 
-    def RunProcessCommand(self, command, return_response=True):
+    def run_process_command(self, command, return_response=True):
         """ Sends command and returns ANSYS's response """
         if not self.process.isalive():
             raise Exception('ANSYS process closed')
@@ -634,9 +709,11 @@ class ANSYS(_InternalANSYS):
             self.process.sendline(command)
             return
 
+        full_response = ''
         while True:
             i = self.process.expect_list(expect_list, timeout=None)
             response = self.process.before.decode('utf-8')
+            full_response += response
             if i >= continue_idx and i < warning_idx:  # continue
                 self.log.debug('Continue: Response index %i.  Matched %s'
                                % (i, ready_items[i].decode('utf-8')))
@@ -676,7 +753,7 @@ class ANSYS(_InternalANSYS):
                 self.log.debug('continue index %i.  Matched %s'
                                % (i, ready_items[i].decode('utf-8')))
                 break
-
+            
             # handle response
             if '*** ERROR ***' in response:  # flag error
                 self.log.error(response)
@@ -691,9 +768,24 @@ class ANSYS(_InternalANSYS):
             else:
                 self.log.info(response)
 
-        return self.process.before.decode('utf-8')
+        if self._interactive_plotting:
+            self.display_plot(full_response)
 
-    def RunCorbaCommand(self, command):
+        # return last response and all preceding responses
+        return full_response
+
+    @property
+    def processor(self):
+        """ Returns the current processor """
+        msg = self.Run('/Status')
+        processor = None
+        matched_line = [line for line in msg.split('\n') if "Current routine" in line]
+        if matched_line:
+            # get the processor
+            processor = re.findall('\(([^)]+)\)', matched_line[0])[0]
+        return processor
+
+    def run_corba_command(self, command):
         """
         Sends a command to the mapdl server
 
@@ -782,22 +874,21 @@ class ANSYS(_InternalANSYS):
                 raise Exception(additional_text)
 
         if self._interactive_plotting:
-            self.DisplayPlot('%s\n%s' % (text, additional_text))
+            self.display_plot('%s\n%s' % (text, additional_text))
 
         # return text, additional_text
         if text == additional_text:
             additional_text = ''
         return '%s\n%s' % (text, additional_text)
 
-    def LoadParameters(self):
+    def load_parameters(self):
         # load ansys parameters to python
         self.Parsav('all')  # saves to file.parm by default
         filename = os.path.join(self.path, 'file.parm')
-        self.parameters, self.arrays = LoadParameters(filename)
+        self.parameters, self.arrays = load_parameters(filename)
 
-    def AddFileHandler(self, filepath, append):
+    def add_file_handler(self, filepath, append):
         """ Adds a file handler to the log """
-        # import pdb; pdb.set_trace()
         if append:
             mode = 'a'
         else:
@@ -815,11 +906,11 @@ class ANSYS(_InternalANSYS):
         self.log.addHandler(self.fileHandler)
         self.log.info('Added file handler at %s' % filepath)
 
-    def RemoveFileHandler(self):
+    def remove_file_handler(self):
         self.log.removeHandler(self.fileHandler)
         self.log.info('Removed file handler')
 
-    def DisplayPlot(self, text):
+    def display_plot(self, text):
         """ Check if plot exists based on command output """
         png_found = png_test.findall(text)
         if png_found:
@@ -838,14 +929,14 @@ class ANSYS(_InternalANSYS):
 
     def __del__(self):
         # clean up when complete
-        self.Kill()
-        self.CloseAPDLLog()
+        self.kill()
+        self.close_apdl_log()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # clean up when complete
         self.Exit()
 
-    def Exit(self):
+    def Exit(self, close_log=True):
         """
         Exit ANSYS process without attempting to kill the process.
         """
@@ -862,15 +953,16 @@ class ANSYS(_InternalANSYS):
                 raise Exception(e)
 
         self.log.info('ANSYS exited')
-        self.apdl_log.close()
+        if close_log:
+            self.apdl_log.close()
 
-    def Kill(self):
+    def kill(self):
         """ Forces ANSYS process to end and removes lock file """
         if self.is_alive:
             try:
                 self.Exit()
             except:
-                KillProcess(self.process.pid)
+                kill_process(self.process.pid)
                 self.log.debug('Killed process %d' % self.process.pid)
 
         if os.path.isfile(self.lockfile):
@@ -896,7 +988,7 @@ class ANSYS(_InternalANSYS):
     def __call__(self, command, **kwargs):
         return self.Run(command, **kwargs)
 
-    def OpenCorba(self, nproc, timeout, additional_switches):
+    def open_corba(self, nproc, timeout, additional_switches):
         """
         Open a connection to ANSYS via a CORBA interface
         """
@@ -977,9 +1069,9 @@ class ANSYS(_InternalANSYS):
             self.parent._store_commands = True
         def __exit__(self, type, value, traceback):
             self.parent.log.debug('entering non-interactive mode')
-            self.parent._FlushStored()
+            self.parent._flush_stored()
 
-    def _FlushStored(self):
+    def _flush_stored(self):
         """
         Writes stored commands to an input file and runs the input file.
         Used with non_interactive.
@@ -999,7 +1091,6 @@ class ANSYS(_InternalANSYS):
         with open(filename, 'w') as f:
             f.writelines(commands)
 
-        # import pdb; pdb.set_trace()
         self._store_commands = False
         self._stored_commands = []
         self.Run('/INPUT, %s' % filename, write_to_log=False)
@@ -1012,8 +1103,42 @@ class ANSYS(_InternalANSYS):
 
         self.log.info(self.response)
 
+    def open_gui(self):
+        """ Saves existing database and opens up APDL GUI """
+        temp_dir = tempfile.gettempdir()
+        save_path = os.path.join(temp_dir, 'ansys')
+        if not os.path.isdir(save_path):
+            os.mkdir(save_path)
 
-def LoadParameters(filename):
+        name = 'tmp'
+        tmp_database = os.path.join(save_path, '%s.db' % name)
+        if os.path.isfile(tmp_database):
+            os.remove(tmp_database)
+
+        # get the state, close, and finish
+        prior_processor = self.processor
+        self.Finish()
+        self.Save(tmp_database)
+        self.Exit(close_log=False)
+
+        # write temporary input file
+        start_file = os.path.join(self.path, 'start%s.ans' % self.version)
+        with open(start_file, 'w') as f:
+            f.write('RESUME\n')
+
+        args = ()
+        os.system('%s -g -j %s -dir "%s"' % (self.exec_file, name, self.path))
+
+        # must remove the start file when finished
+        os.remove(start_file)
+
+        # open up script again when finished
+        self._open()
+        self.Resume(tmp_database)
+        if 'BEGIN' not in prior_processor:
+            self.Run('/%s' % prior_processor)
+
+def load_parameters(filename):
     """ load parameters """
     parameters = {}
     arrays = {}
@@ -1064,7 +1189,7 @@ def LoadParameters(filename):
                     # break
                     st = line.find(',', st)
                     value = line[st + 1:].strip()
-                    if IsFloat(value):
+                    if is_float(value):
                         parameters[varname] = float(value)
                     else:
                         parameters[varname] = value

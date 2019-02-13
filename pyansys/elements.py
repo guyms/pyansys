@@ -1,5 +1,5 @@
 """
-Element types pyansys can parse
+Element types pyansys can parse:
 
 LINK1
 PLANE42
@@ -16,15 +16,18 @@ SOLID185
 SOLID186
 SOLID187
 BEAM188
+PLANE223
 
 To suggest an additional element type, open an issue at
 https://github.com/akaszynski/pyansys/issues
 
 """
 valid_types = ['1',   # LINK1
-               '42',  # PLANE42
+               # '41',  # SHELL41 (legacy of SHELL181)
+               '42',  # PLANE42 (legacy of PLANE182)
                '45',  # SOLID45
-               '82',  # PLANE82
+               '55',  # PLANE55
+               '82',  # PLANE82 (legacy of PLANE183)
                '92',  # SOLID92
                '95',  # SOLID95
                '154',  # SURF154
@@ -35,4 +38,6 @@ valid_types = ['1',   # LINK1
                '185',  # SOLID185
                '186',  # SOLID186
                '187',  # SOLID187
-               '188']  # BEAM188
+               '188',  # BEAM188
+               '223',  # PLANE223
+               '281']  # SHELL281
